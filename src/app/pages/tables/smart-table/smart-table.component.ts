@@ -5,10 +5,24 @@ import {SmartTableData} from '../../../@core/data/smart-table';
 import {HttpClient, HttpParams} from "@angular/common/http";
 import {ServerSourceConf} from "ng2-smart-table/lib/data-source/server/server-source.conf";
 import {map} from "rxjs/operators";
+import {Observable} from "rxjs";
 
 class PostgrestDataSource extends ServerDataSource {
   constructor(http: HttpClient, conf: ServerSourceConf | {}, private columns: any) {
     super(http, conf);
+  }
+
+  protected requestElements(): Observable<any> {
+    const httpParams = this.createRequesParams();
+    return this.http.get(this.conf.endPoint, {
+      params: httpParams,
+      observe: 'response',
+      headers: {"Prefer": "count=exact"}
+    });
+  }
+
+  protected extractTotalFromResponse(res: any): number {
+    return +res.headers.get('Content-Range').split("/")[1];
   }
 
   protected addPagerRequestParams(httpParams: HttpParams): HttpParams {
@@ -61,7 +75,7 @@ class PostgrestDataSource extends ServerDataSource {
 
   prepend(element: any): Promise<any> {
     return new Promise<any>((resolve, reject) => {
-      this.http.post(`http://localhost:3000/users`, this.preprocessUpdate(element), {
+      this.http.post(this.conf.endPoint, this.preprocessUpdate(element), {
         headers: {"Prefer": "return=representation"}
       })
         .pipe(
@@ -75,7 +89,7 @@ class PostgrestDataSource extends ServerDataSource {
 
   update(element: any, values: any): Promise<any> {
     return new Promise<any>((resolve, reject) => {
-      this.http.patch(`http://localhost:3000/users?id=eq.${element.id}`, values, {
+      this.http.patch(`${this.conf.endPoint}?id=eq.${element.id}`, values, {
         headers: {"Prefer": "resolution=merge-duplicates, return=representation"}
       })
         .pipe(
@@ -89,7 +103,7 @@ class PostgrestDataSource extends ServerDataSource {
 
   remove(element: any): Promise<any> {
     return new Promise<any>((resolve, reject) => {
-      this.http.delete(`http://localhost:3000/users?id=eq.${element.id}`)
+      this.http.delete(`${this.conf.endPoint}?id=eq.${element.id}`)
         .pipe(
           map(_ => {
             super.remove(element);
