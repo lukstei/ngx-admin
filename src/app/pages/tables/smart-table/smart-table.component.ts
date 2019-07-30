@@ -1,7 +1,103 @@
-import { Component } from '@angular/core';
-import { LocalDataSource } from 'ng2-smart-table';
+import {Component} from '@angular/core';
+import {ServerDataSource} from 'ng2-smart-table';
 
-import { SmartTableData } from '../../../@core/data/smart-table';
+import {SmartTableData} from '../../../@core/data/smart-table';
+import {HttpClient, HttpParams} from "@angular/common/http";
+import {ServerSourceConf} from "ng2-smart-table/lib/data-source/server/server-source.conf";
+import {map} from "rxjs/operators";
+
+class PostgrestDataSource extends ServerDataSource {
+  constructor(http: HttpClient, conf: ServerSourceConf | {}, private columns: any) {
+    super(http, conf);
+  }
+
+  protected addPagerRequestParams(httpParams: HttpParams): HttpParams {
+    if (this.pagingConf && this.pagingConf['page'] && this.pagingConf['perPage']) {
+      httpParams = httpParams.set("offset", +this.pagingConf['perPage'] * (+this.pagingConf['page'] - 1));
+      httpParams = httpParams.set("limit", this.pagingConf['perPage']);
+    }
+    return httpParams;
+  }
+
+  protected addFilterRequestParams(httpParams: HttpParams): HttpParams {
+    if (this.filterConf.filters) {
+      const filters = this.filterConf.filters
+        .filter(x => x['search'])
+        .map(fieldConf => {
+          const q = encodeURIComponent(fieldConf['search']);
+          const search = this.columns[fieldConf['field']].type === "string" ?
+            `like.*${q}*`
+            : `eq.${q}`;
+          return `${fieldConf['field']}.${search}`;
+        });
+
+      if (filters.length > 0) {
+        httpParams = httpParams.set("and", "(" + filters.join(",") + ")");
+      }
+    }
+    return httpParams;
+  }
+
+  protected addSortRequestParams(httpParams: HttpParams): HttpParams {
+    if (this.sortConf) {
+      this.sortConf.forEach( fieldConf => {
+        httpParams = httpParams.set("order", `${fieldConf.field}.${fieldConf.direction.toLowerCase()}`);
+      });
+    }
+    return httpParams;
+  }
+
+  preprocessUpdate(element: any) {
+    const newObject = Object.assign({}, element);
+    Object.entries(this.columns).map(([k, c]) => {
+      if(c.type === 'number') {
+        if(newObject[k] === '') {
+          delete newObject[k];
+        }
+      }
+    });
+    return newObject;
+  }
+
+  prepend(element: any): Promise<any> {
+    return new Promise<any>((resolve, reject) => {
+      this.http.post(`http://localhost:3000/users`, this.preprocessUpdate(element), {
+        headers: {"Prefer": "return=representation"}
+      })
+        .pipe(
+          map(x => {
+            super.prepend(element, x[0]);
+            return x[0];
+          })
+        ).subscribe(resolve, reject);
+    });
+  }
+
+  update(element: any, values: any): Promise<any> {
+    return new Promise<any>((resolve, reject) => {
+      this.http.patch(`http://localhost:3000/users?id=eq.${element.id}`, values, {
+        headers: {"Prefer": "resolution=merge-duplicates, return=representation"}
+      })
+        .pipe(
+          map(x => {
+            super.update(element, x[0]);
+            return x[0];
+          })
+        ).subscribe(resolve, reject);
+    });
+  }
+
+  remove(element: any): Promise<any> {
+    return new Promise<any>((resolve, reject) => {
+      this.http.delete(`http://localhost:3000/users?id=eq.${element.id}`)
+        .pipe(
+          map(_ => {
+            super.remove(element);
+          })
+        ).subscribe(resolve, reject);
+    });
+  }
+}
 
 @Component({
   selector: 'ngx-smart-table',
@@ -30,11 +126,11 @@ export class SmartTableComponent {
         title: 'ID',
         type: 'number',
       },
-      firstName: {
+      first_name: {
         title: 'First Name',
         type: 'string',
       },
-      lastName: {
+      last_name: {
         title: 'Last Name',
         type: 'string',
       },
@@ -51,11 +147,24 @@ export class SmartTableComponent {
         type: 'number',
       },
     },
+    pager: {
+      display: true,
+      perPage: 30,
+    },
   };
 
-  source: LocalDataSource = new LocalDataSource();
+  source: ServerDataSource;
 
-  constructor(private service: SmartTableData) {
+  constructor(
+    private httpClient: HttpClient,
+    private service: SmartTableData) {
+    this.source = new PostgrestDataSource(httpClient,
+      new ServerSourceConf({
+        endPoint: 'http://localhost:3000/users'
+      }),
+      this.settings.columns
+    );
+
     const data = this.service.getData();
     this.source.load(data);
   }
