@@ -1,12 +1,10 @@
 import {Component, OnChanges, SimpleChange} from '@angular/core';
 import {ServerDataSource} from 'ng2-smart-table';
 
-import {SmartTableData} from '../../../@core/data/smart-table';
 import {HttpClient, HttpParams} from "@angular/common/http";
 import {ServerSourceConf} from "ng2-smart-table/lib/data-source/server/server-source.conf";
 import {map} from "rxjs/operators";
 import {Observable} from "rxjs";
-import {Ng2SmartTableComponent} from "ng2-smart-table/ng2-smart-table.component";
 
 class PostgrestDataSource extends ServerDataSource {
   constructor(http: HttpClient, conf: ServerSourceConf | {}, private columns: any) {
@@ -171,17 +169,13 @@ export class SmartTableComponent {
   source: ServerDataSource;
 
   constructor(
-    private httpClient: HttpClient,
-    private service: SmartTableData) {
+    private httpClient: HttpClient) {
     this.source = new PostgrestDataSource(httpClient,
       new ServerSourceConf({
         endPoint: 'http://localhost:3000/users'
       }),
       this.settings.columns
     );
-
-    const data = this.service.getData();
-    this.source.load(data);
   }
 
   onDeleteConfirm(event): void {
