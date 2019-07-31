@@ -1,4 +1,4 @@
-import {Component} from '@angular/core';
+import {Component, OnChanges, SimpleChange} from '@angular/core';
 import {ServerDataSource} from 'ng2-smart-table';
 
 import {SmartTableData} from '../../../@core/data/smart-table';
@@ -6,6 +6,7 @@ import {HttpClient, HttpParams} from "@angular/common/http";
 import {ServerSourceConf} from "ng2-smart-table/lib/data-source/server/server-source.conf";
 import {map} from "rxjs/operators";
 import {Observable} from "rxjs";
+import {Ng2SmartTableComponent} from "ng2-smart-table/ng2-smart-table.component";
 
 class PostgrestDataSource extends ServerDataSource {
   constructor(http: HttpClient, conf: ServerSourceConf | {}, private columns: any) {
@@ -17,7 +18,7 @@ class PostgrestDataSource extends ServerDataSource {
     return this.http.get(this.conf.endPoint, {
       params: httpParams,
       observe: 'response',
-      headers: {"Prefer": "count=exact"}
+      headers: {"Prefer": "count=exact"},
     });
   }
 
@@ -27,7 +28,7 @@ class PostgrestDataSource extends ServerDataSource {
 
   protected addPagerRequestParams(httpParams: HttpParams): HttpParams {
     if (this.pagingConf && this.pagingConf['page'] && this.pagingConf['perPage']) {
-      httpParams = httpParams.set("offset", +this.pagingConf['perPage'] * (+this.pagingConf['page'] - 1));
+      httpParams = httpParams.set("offset", "" + (+this.pagingConf['perPage'] * (+this.pagingConf['page'] - 1)));
       httpParams = httpParams.set("limit", this.pagingConf['perPage']);
     }
     return httpParams;
@@ -63,7 +64,7 @@ class PostgrestDataSource extends ServerDataSource {
 
   preprocessUpdate(element: any) {
     const newObject = Object.assign({}, element);
-    Object.entries(this.columns).map(([k, c]) => {
+    Object.entries(this.columns).map(([k, c]: [any, any]) => {
       if(c.type === 'number') {
         if(newObject[k] === '') {
           delete newObject[k];
@@ -76,13 +77,13 @@ class PostgrestDataSource extends ServerDataSource {
   prepend(element: any): Promise<any> {
     return new Promise<any>((resolve, reject) => {
       this.http.post(this.conf.endPoint, this.preprocessUpdate(element), {
-        headers: {"Prefer": "return=representation"}
+        headers: {"Prefer": "return=representation"},
       })
         .pipe(
           map(x => {
-            super.prepend(element, x[0]);
+            super.prepend(x[0]);
             return x[0];
-          })
+          }),
         ).subscribe(resolve, reject);
     });
   }
@@ -190,4 +191,5 @@ export class SmartTableComponent {
       event.confirm.reject();
     }
   }
+
 }

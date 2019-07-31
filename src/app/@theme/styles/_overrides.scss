@@ -8,4 +8,12 @@
       right: 0.41rem !important;
     }
   }
+
+  nb-layout .layout .layout-container .content .columns nb-layout-column {
+    padding: 1.25rem 1.25rem 0.75rem;
+  }
+
+  ng2-smart-table table tr td {
+    padding: 0.5rem 1rem;
+  }
 }
