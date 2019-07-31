@@ -1,15 +1,18 @@
-import {Component, OnChanges, SimpleChange} from '@angular/core';
+import {Component} from '@angular/core';
 import {ServerDataSource} from 'ng2-smart-table';
 
 import {HttpClient, HttpParams} from "@angular/common/http";
 import {ServerSourceConf} from "ng2-smart-table/lib/data-source/server/server-source.conf";
-import {map} from "rxjs/operators";
-import {Observable} from "rxjs";
+import {map, tap} from "rxjs/operators";
+import {Observable, Subject} from "rxjs";
+import {NbGlobalPhysicalPosition, NbToastrService} from "@nebular/theme";
 
 class PostgrestDataSource extends ServerDataSource {
   constructor(http: HttpClient, conf: ServerSourceConf | {}, private columns: any) {
     super(http, conf);
   }
+
+  error: Subject<any> = new Subject();
 
   protected requestElements(): Observable<any> {
     const httpParams = this.createRequesParams();
@@ -53,7 +56,7 @@ class PostgrestDataSource extends ServerDataSource {
 
   protected addSortRequestParams(httpParams: HttpParams): HttpParams {
     if (this.sortConf) {
-      this.sortConf.forEach( fieldConf => {
+      this.sortConf.forEach(fieldConf => {
         httpParams = httpParams.set("order", `${fieldConf.field}.${fieldConf.direction.toLowerCase()}`);
       });
     }
@@ -63,8 +66,8 @@ class PostgrestDataSource extends ServerDataSource {
   preprocessUpdate(element: any) {
     const newObject = Object.assign({}, element);
     Object.entries(this.columns).map(([k, c]: [any, any]) => {
-      if(c.type === 'number') {
-        if(newObject[k] === '') {
+      if (c.type === 'number') {
+        if (newObject[k] === '') {
           delete newObject[k];
         }
       }
@@ -82,6 +85,7 @@ class PostgrestDataSource extends ServerDataSource {
             super.prepend(x[0]);
             return x[0];
           }),
+          tap(undefined, e => this.error.next(e))
         ).subscribe(resolve, reject);
     });
   }
@@ -166,16 +170,18 @@ export class SmartTableComponent {
     },
   };
 
-  source: ServerDataSource;
+  source: PostgrestDataSource;
 
   constructor(
-    private httpClient: HttpClient) {
+    private httpClient: HttpClient,
+    private toastrService: NbToastrService) {
     this.source = new PostgrestDataSource(httpClient,
       new ServerSourceConf({
         endPoint: 'http://localhost:3000/users'
       }),
       this.settings.columns
     );
+    this.source.error.subscribe(e => this.onError(e));
   }
 
   onDeleteConfirm(event): void {
@@ -186,4 +192,21 @@ export class SmartTableComponent {
     }
   }
 
+  onError(error: any) {
+    console.log(error);
+
+    let message: string = error;
+    if (error.error && error.error.message) {
+      message = error.error.message;
+    } else if (error.message) {
+      message = error.message;
+    }
+
+
+    this.toastrService.danger(message, "Error", {
+      duration: 10 * 1000,
+      position: NbGlobalPhysicalPosition.BOTTOM_RIGHT,
+      hasIcon: false
+    });
+  }
 }
